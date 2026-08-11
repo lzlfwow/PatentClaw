@@ -1,0 +1,34 @@
+\documentclass{article}
+\usepackage{amsmath}
+\title{Adaptive Representation Exploration for Diverse Text Generation}
+\author{Research Team}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Existing language-model decoding methods often generate semantically similar outputs. We present an adaptive representation exploration method that constructs a continuous behavioral space, samples candidate representations according to local density, and decodes multiple diverse outputs while preserving task validity. Experiments show improved diversity under comparable validity.
+\end{abstract}
+
+\section{Introduction}
+Conventional sampling changes token probabilities but does not explicitly control high-level behavior. This causes mode concentration and repeated semantic patterns. The objective is to generate multiple valid outputs with controllable behavioral differences.
+
+\section{Method}
+Given an input prompt, the method first extracts a seed representation. It constructs a continuous behavioral space from concept anchors. Candidate representations are sampled according to a density-aware distribution. A radius calibration operation keeps candidates within a valid neighborhood. A diversity filter removes redundant candidates. The selected representations are inserted into a soft prompt and decoded to produce multiple outputs.
+
+The calibrated representation is computed by
+\begin{equation}
+\hat{u}=u_0+\gamma(u-u_0).
+\end{equation}
+
+\section{Experiments}
+Experiments are conducted on product design, role answering, and advertising generation tasks. The proposed method improves the pairwise diversity score while maintaining a comparable validity rate. Ablation results show that density-aware sampling and radius calibration both contribute to the final performance.
+
+\begin{figure}
+\caption{Overall pipeline of the continuous behavioral-space exploration method.}
+\label{fig:pipeline}
+\end{figure}
+
+\section{Conclusion}
+The method explores a continuous behavioral space and generates multiple valid outputs with different behaviors.
+\end{document}
+
