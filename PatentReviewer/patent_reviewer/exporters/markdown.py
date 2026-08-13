@@ -1,0 +1,43 @@
+from __future__ import annotations
+
+from ..constants import DISCLOSURE_SECTION_LABELS
+from ..schemas import ReviewReport, TechnicalDisclosure
+
+
+def disclosure_markdown(disclosure: TechnicalDisclosure) -> str:
+    lines = [f"# {disclosure.invention_title or '技术交底书'}", ""]
+    for field, label in DISCLOSURE_SECTION_LABELS.items():
+        if field == "invention_title":
+            continue
+        value = getattr(disclosure, field)
+        lines.extend([f"## {label}", ""])
+        if isinstance(value, list):
+            lines.extend([f"{index}. {item}" for index, item in enumerate(value, start=1)] or ["（待补充）"])
+        else:
+            lines.append(value or "（待补充）")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def review_markdown(report: ReviewReport, title: str) -> str:
+    lines = [f"# {title}", "", f"- 总分：{report.score}/100", f"- 结论：{'通过规则基线' if report.passed else '存在待处理问题'}",
+             f"- 法规基线：{report.legal_baseline}", "", "## 审查意见", ""]
+    if not report.findings:
+        lines.append("未发现规则可识别问题。")
+    for index, item in enumerate(report.findings, start=1):
+        lines.extend([
+            f"### {index}. [{item.severity.value}] {item.issue}", "",
+            f"- 编码：`{item.code}`",
+            f"- 维度：{item.dimension}",
+            f"- 位置：`{item.target_path}`",
+            f"- 风险：{item.risk}",
+            f"- 建议：{item.suggested_revision or '人工核查'}",
+            f"- 证据：{', '.join(item.evidence_ids) or '未绑定'}",
+            f"- 发明人确认：{'是' if item.requires_inventor_confirmation else '否'}",
+        ])
+        if item.legal_basis:
+            lines.append(f"- 依据：{'；'.join(item.legal_basis)}")
+        lines.append("")
+    lines.extend(["## 人工终检清单", ""] + [f"- {item}" for item in report.human_review_checklist])
+    lines.extend(["", "## 使用边界", ""] + [f"- {item}" for item in report.limitations])
+    return "\n".join(lines) + "\n"
