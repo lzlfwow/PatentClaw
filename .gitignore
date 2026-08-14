@@ -35,6 +35,7 @@ logs/
 # Editors, operating systems, and temporary files
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 *~

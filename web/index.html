@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PatentClaw — 论文到专利交底书自动生成与审校🦞</title>
+  <meta name="description" content="PatentClaw：上传一篇论文，自动生成证据可追溯的技术交底书，并由独立审校服务重新核查、评分与改稿。">
+  <meta property="og:title" content="PatentClaw — 论文到专利交底书自动生成与审校">
+  <meta property="og:description" content="Turning Every Paper into a Filable Invention Disclosure">
+  <meta property="og:type" content="website">
+  <!-- 内联 SVG favicon，无需 assets 文件 -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%A6%9E</text></svg>">
+  <link rel="stylesheet" href="style.css">
+  <style>
+
+    /* ══════════════════════ HERO ══════════════════════ */
+    .hero { max-width: 760px; margin: 0 auto; padding: 66px 32px 40px; text-align: center; }
+    .hero-eyebrow { display: flex; align-items: center; gap: 14px; justify-content: center; margin-bottom: 26px; }
+    .hero h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(38px, 6.4vw, 60px);
+      font-weight: 400; letter-spacing: -.015em; line-height: 1.05; margin-bottom: 12px;
+    }
+    .hero-cn {
+      font-size: clamp(17px, 2.6vw, 21px); font-weight: 650;
+      letter-spacing: .05em; color: var(--ink-2); margin-bottom: 8px;
+    }
+    .hero-en {
+      font-family: var(--font-serif); font-style: italic;
+      font-size: 15px; color: var(--muted); margin-bottom: 34px;
+    }
+
+    /* 概览块 */
+    .abstract { margin-bottom: 32px; text-align: left; }
+    .abstract-head { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
+    .abstract-head::before, .abstract-head::after { content: ''; height: 1px; background: var(--rule-2); flex: 1; }
+    .abstract-head span {
+      font-size: 12.5px; font-weight: 700; letter-spacing: .3em; color: var(--ink-2); padding-left: .3em;
+    }
+    .abstract p {
+      font-size: 14.8px; line-height: 1.95; color: var(--ink-2);
+      text-indent: 2em; text-align: justify;
+    }
+    .abstract p + p { margin-top: 14px; }
+    .abstract p b { color: var(--seal); font-weight: 650; }
+    .abstract p.en {
+      font-family: var(--font-serif); font-style: italic; text-indent: 0;
+      font-size: 13.5px; color: var(--muted); line-height: 1.75;
+    }
+
+    /* 署名 */
+    .authors { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0 14px; margin-bottom: 12px; }
+    .authors .a { font-size: 14px; font-weight: 600; color: var(--ink-2); position: relative; padding-right: 14px; }
+    .authors .a:not(:last-child)::after {
+      content: ''; position: absolute; right: 0; top: 4px; bottom: 4px; width: 1px; background: var(--rule-2);
+    }
+    .authors .en { font-family: var(--font-serif); font-weight: 400; color: var(--muted); font-size: 12.5px; margin-left: 4px; }
+    .authors sup { color: var(--seal); font-size: 11px; margin-left: 1px; }
+    .affil { font-size: 13px; color: var(--muted); letter-spacing: .02em; }
+    .affil-lab {
+      font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .14em;
+      text-transform: uppercase; color: var(--rule-2); margin-top: 5px; margin-bottom: 8px;
+    }
+    .corr-note { font-size: 11.5px; color: var(--muted); margin-bottom: 28px; }
+    .corr-note sup { color: var(--seal); }
+
+    .btns { display: flex; gap: 9px; justify-content: center; flex-wrap: wrap; }
+
+    /* ══════════════════════ TEASER ══════════════════════ */
+    .teaser { max-width: var(--max-wide); margin: 0 auto; padding: 46px 32px 0; }
+    .teaser-cap { display: flex; align-items: center; gap: 12px; font-size: 12.5px; color: var(--muted); margin-bottom: 16px; }
+    .teaser-cap::after { content: ''; flex: 1; height: 1px; background: var(--rule); }
+    .teaser-cap b { color: var(--ink-2); font-weight: 650; }
+
+    .intake { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+    .fchip {
+      display: flex; align-items: center; gap: 9px;
+      border: 1px solid var(--rule-2); background: var(--sheet);
+      padding: 8px 13px 8px 9px; border-radius: 2px;
+    }
+    .fchip-ext {
+      font-family: var(--font-mono); font-size: 8.5px; font-weight: 700; letter-spacing: .06em;
+      color: #fff; padding: 3px 5px; border-radius: 1px;
+    }
+    .ext-tex { background: #4a6b52; } .ext-zip { background: #6b5a3f; }
+    .fchip-name { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+    .fchip-meta { font-size: 10px; color: var(--muted); font-family: var(--font-mono); }
+    .intake-arrow { font-family: var(--font-mono); color: var(--rule-2); font-size: 15px; }
+    .intake-state { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; color: var(--seal); text-transform: uppercase; }
+
+    .sheet {
+      display: grid; grid-template-columns: 1fr 278px;
+      border: 1px solid var(--rule-2); background: var(--sheet);
+      box-shadow: 0 1px 0 var(--rule-2), 0 14px 44px rgba(28,26,23,.07);
+    }
+    .sheet-main { position: relative; display: grid; grid-template-columns: 42px 1fr; }
+    .lines {
+      border-right: 1px solid var(--rule); background: var(--paper-2);
+      padding: 22px 0; text-align: center;
+      font-family: var(--font-mono); font-size: 9px; color: #b8b0a2; line-height: 1.95; user-select: none;
+    }
+    .sheet-doc { padding: 22px 26px 26px; position: relative; overflow: hidden; }
+    .doc-kicker {
+      font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .16em;
+      text-transform: uppercase; color: var(--muted); margin-bottom: 7px;
+    }
+    .doc-title { font-size: 16px; font-weight: 700; letter-spacing: .02em; padding-bottom: 14px; margin-bottom: 16px; border-bottom: 1px solid var(--rule); }
+    .doc-sec { margin-bottom: 15px; }
+    .doc-h { font-size: 12.5px; font-weight: 700; color: var(--seal); letter-spacing: .04em; margin-bottom: 7px; display: flex; align-items: baseline; gap: 8px; }
+    .doc-ev { font-family: var(--font-mono); font-size: 8.5px; color: var(--jade); border: 1px solid var(--jade-line); padding: 0 4px; font-weight: 400; letter-spacing: .04em; }
+    .bar { height: 5px; border-radius: 1px; background: #e9e4da; margin-bottom: 5px; }
+    .bar.hl { background: #f2ddd9; }
+
+    .seal-stamp {
+      position: absolute; right: 24px; bottom: 22px;
+      width: 84px; height: 84px; border: 2.5px solid var(--seal); border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--seal); font-size: 13px; font-weight: 700;
+      letter-spacing: .14em; line-height: 1.4; text-align: center;
+      transform: rotate(-13deg); opacity: .55;
+    }
+    .seal-stamp::before { content: ''; position: absolute; inset: 4px; border: 1px solid var(--seal); border-radius: 3px; }
+
+    .gutter { border-left: 1px solid var(--rule); background: var(--paper); padding: 22px 18px; }
+    .gutter-h {
+      font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase;
+      color: var(--muted); padding-bottom: 10px; margin-bottom: 12px; border-bottom: 1px solid var(--rule);
+    }
+    .anno { margin-bottom: 13px; padding-left: 11px; border-left: 2px solid var(--jade-line); }
+    .anno.warn { border-left-color: var(--seal); }
+    .anno-h { display: flex; align-items: baseline; gap: 7px; margin-bottom: 6px; flex-wrap: wrap; }
+    .anno-code { font-family: var(--font-mono); font-size: 9px; color: var(--jade); }
+    .anno.warn .anno-code { color: var(--seal); }
+    .anno-name { font-size: 11.5px; font-weight: 650; color: var(--ink-2); }
+    .anno-lv {
+      font-family: var(--font-mono); font-size: 8.5px; letter-spacing: .08em;
+      padding: 1px 5px; border: 1px solid var(--rule-2); color: var(--muted); border-radius: 1px;
+    }
+    .anno.warn .anno-lv { border-color: var(--seal); color: var(--seal); background: var(--seal-tint); }
+
+    @media (max-width: 860px) {
+      .sheet { grid-template-columns: 1fr; }
+      .gutter { border-left: none; border-top: 1px solid var(--rule); }
+      .lines { display: none; }
+      .sheet-main { grid-template-columns: 1fr; }
+    }
+
+    /* ── 特点卡片 ── */
+    .feat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 22px 24px; }
+    .feat-card { border-top: 2px solid var(--ink); padding-top: 14px; }
+    .feat-no { font-family: var(--font-mono); font-size: 10.5px; color: var(--seal); letter-spacing: .06em; }
+    .feat-title { font-size: 14.5px; font-weight: 700; letter-spacing: .01em; margin: 6px 0 6px; }
+    .feat-desc { font-size: 12.8px; color: var(--muted); line-height: 1.65; }
+    @media (max-width: 900px) { .feat-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 560px) { .feat-grid { grid-template-columns: 1fr; } }
+
+    /* ── 流水线（竖向） ── */
+    .flow { position: relative; padding-left: 4px; }
+    .flow::before { content: ''; position: absolute; left: 92px; top: 12px; bottom: 12px; width: 1px; background: var(--rule-2); }
+    .flow-row { display: grid; grid-template-columns: 78px 28px 1fr; gap: 0 12px; align-items: start; padding: 11px 0; }
+    .flow-stage {
+      font-family: var(--font-mono); font-size: 10px; letter-spacing: .06em;
+      color: var(--muted); text-align: right; padding-top: 3px;
+    }
+    .flow-dot-wrap { display: flex; justify-content: center; padding-top: 4px; }
+    .flow-dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--paper); border: 1px solid var(--seal); position: relative; z-index: 1;
+    }
+    .flow-h { display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap; margin-bottom: 3px; }
+    .flow-cn { font-size: 14px; font-weight: 700; color: var(--ink); }
+    .flow-d { font-size: 12.9px; color: var(--muted); line-height: 1.65; }
+    @media (max-width: 640px) {
+      .flow::before { display: none; }
+      .flow-row { grid-template-columns: 1fr; gap: 3px; }
+      .flow-stage { text-align: left; }
+      .flow-dot-wrap { display: none; }
+    }
+
+    /* ── 目录 ── */
+    .toc { border-top: 1px solid var(--rule-2); display: grid; grid-template-columns: 1fr 1fr; gap: 0 40px; }
+    .toc-item { padding: 11px 0; border-bottom: 1px solid var(--rule); }
+    .toc-line { display: flex; align-items: baseline; }
+    .toc-cn { font-size: 14.2px; font-weight: 650; letter-spacing: .02em; }
+    .toc-dots { flex: 1; border-bottom: 1px dotted var(--rule-2); margin: 0 10px 5px; min-width: 24px; }
+    .toc-no { font-family: var(--font-mono); font-size: 11.5px; color: var(--seal); }
+    @media (max-width: 640px) { .toc { grid-template-columns: 1fr; } }
+
+    /* ── 代码 ── */
+    .code-wrap { position: relative; }
+    .code {
+      background: var(--sheet); border: 1px solid var(--rule-2);
+      padding: 20px 22px; font-family: var(--font-mono);
+      font-size: 12.4px; line-height: 1.85; color: var(--ink-2);
+      overflow-x: auto; white-space: pre;
+    }
+    .code .c { color: #9a9184; }
+    .code .k { color: var(--seal); }
+    .code .v { color: #3f5878; }
+    .copy-btn {
+      position: absolute; top: 9px; right: 9px;
+      background: var(--paper-2); color: var(--muted);
+      border: 1px solid var(--rule-2); border-radius: 1px;
+      padding: 3px 10px; font-size: 10.5px; cursor: pointer;
+      font-family: var(--font-mono); letter-spacing: .08em; transition: all .15s;
+    }
+    .copy-btn:hover { color: var(--seal); border-color: var(--seal); }
+
+    /* ── 运行示例 ── */
+    .ex-stats {
+      display: grid; grid-template-columns: repeat(6, 1fr);
+      border: 1px solid var(--rule-2); background: var(--sheet); margin-bottom: 22px;
+    }
+    .ex-stat { padding: 15px 14px; border-right: 1px solid var(--rule); }
+    .ex-stat:last-child { border-right: none; }
+    .ex-stat-v { font-family: var(--font-mono); font-size: 20px; font-weight: 600; color: var(--ink); line-height: 1.2; }
+    .ex-stat-v .to { color: var(--rule-2); font-weight: 400; }
+    .ex-stat-v.seal { color: var(--seal); }
+    .ex-stat-k { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+    @media (max-width: 860px) {
+      .ex-stats { grid-template-columns: repeat(3, 1fr); }
+      .ex-stat { border-bottom: 1px solid var(--rule); }
+      .ex-stat:nth-child(3n) { border-right: none; }
+    }
+    @media (max-width: 480px) { .ex-stats { grid-template-columns: repeat(2, 1fr); } }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════ NAV ══════════════════════ -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="nav-brand">
+      <span class="nav-brand-name">PatentClaw</span>
+      <span class="nav-brand-sub">交底书生成</span>
+    </a>
+    <div class="nav-links">
+      <a href="#features"><span class="nav-no">§1</span>特点</a>
+      <a href="#flow"><span class="nav-no">§2</span>工作原理</a>
+      <a href="#outline"><span class="nav-no">§3</span>交底书结构</a>
+      <a href="#example"><span class="nav-no">§4</span>运行示例</a>
+      <a href="#start"><span class="nav-no">§5</span>快速开始</a>
+      <a href="#citation"><span class="nav-no">§6</span>引用</a>
+      <a href="example.html" class="nav-keep">运行示例</a>
+      <a href="https://github.com/lzlfwow/PatentClaw" target="_blank" rel="noopener" class="nav-keep">GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ══════════════════════ HERO ══════════════════════ -->
+<div class="hero">
+  <div class="hero-eyebrow"><span class="eyebrow">Patent Disclosure · Generator + Reviewer v0.1.0</span></div>
+
+  <h1>PatentClaw</h1>
+  <div class="hero-cn">论文到专利交底书自动生成与审校 🦞</div>
+  <div class="hero-en">Paper-to-Patent Disclosure Generation &amp; Review Agents</div>
+
+  <div class="abstract">
+    <div class="abstract-head"><span>概览 · OVERVIEW</span></div>
+    <p>
+      <b>PatentClaw</b> 是一款面向科研人员的论文转专利辅助工具🦞。上传一篇 LaTeX 论文，
+      <b>PatentGenerator</b> 自动抽取技术要点并撰写出符合法定结构的技术交底书；
+      <b>PatentReviewer</b> 再对照原文独立审校，给出评分与修订方案，产出可直接交给专利代理师的终版文档。
+      全程每一句技术表述都可追溯到论文原文，拿不到证据支持的内容绝不臆造。
+    </p>
+    <p class="en">
+      PatentClaw turns a research paper into a patent-ready technical disclosure.
+      <b>PatentGenerator</b> reads your LaTeX paper and drafts a legally structured disclosure;
+      <b>PatentReviewer</b> then independently re-checks it against the original text, scores it,
+      and produces a revised, filing-ready version. Every technical claim stays traceable to the
+      paper — nothing is fabricated without evidence.
+    </p>
+  </div>
+
+  <!-- TODO: 作者顺序 / 英文名如有变动，改这里与 §6 BibTeX 两处 -->
+  <div class="authors">
+    <span class="a">刘润泽<span class="en">Runze Liu</span></span>
+    <span class="a">吴俊杞<span class="en">Junqi Wu</span></span>
+    <span class="a">汤凯华<span class="en">Kaihua Tang</span></span>
+    <span class="a">杨　旭<sup>*</sup><span class="en">Xu Yang</span></span>
+    <span class="a">杨子悦<span class="en">Ziyue Yang</span></span>
+  </div>
+  <div class="affil">东南大学 · Southeast University</div>
+  <div class="affil-lab">SEU PALM Lab</div>
+  <div class="corr-note"><sup>*</sup> 通讯作者</div>
+
+  <div class="btns">
+    <a href="https://github.com/lzlfwow/PatentClaw" target="_blank" rel="noopener" class="btn btn-primary">
+      <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
+    <a href="example.html" class="btn btn-seal">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 3h12M2 8h12M2 13h7"/></svg>
+      看一次真实运行
+    </a>
+    <a href="#start" class="btn">本地运行</a>
+  </div>
+</div>
+
+<!-- ══════════════════════ TEASER ══════════════════════ -->
+<!-- 说明：以下整块是纯 CSS 画的界面示意，无图片依赖。
+     文字信息取自 §4 的真实运行（生成任务 l2d-e379985a160a），
+     灰条为正文段落的视觉占位；完整正文见 example.html -->
+<div class="teaser">
+  <p class="teaser-cap"><b>工作台示意</b>&nbsp;&nbsp;LaTeX 入稿 → 交底书正文 → 右栏证据账本&nbsp;&nbsp;<a href="example.html" style="color:var(--seal);text-decoration:none;border-bottom:1px solid var(--rule-2);">看真实运行 →</a></p>
+
+  <div class="intake">
+    <div class="fchip">
+      <span class="fchip-ext ext-zip">ZIP</span>
+      <span><span class="fchip-name">NIPS26_multi_cot_wzy.zip</span><br><span class="fchip-meta">LATEX PROJECT · 8 FILES</span></span>
+    </div>
+    <div class="fchip">
+      <span class="fchip-ext ext-tex">TEX</span>
+      <span><span class="fchip-name">neurips_2026.tex</span><br><span class="fchip-meta">ROOT FILE · 26 SECTIONS</span></span>
+    </div>
+    <span class="intake-arrow">──▸</span>
+    <span class="intake-state">已完成</span>
+  </div>
+
+  <div class="sheet">
+    <div class="sheet-main">
+      <div class="lines">01<br>02<br>03<br>04<br>05<br>06<br>07<br>08<br>09<br>10<br>11<br>12<br>13<br>14<br>15<br>16<br>17<br>18<br>19<br>20<br>21<br>22<br>23<br>24</div>
+      <div class="sheet-doc">
+        <div class="doc-kicker">技术交底书 · l2d-e379985a160a · PatentGenerator</div>
+        <div class="doc-title">语言侧推理向量提取及视觉语言模型干预方法和系统</div>
+
+        <div class="doc-sec">
+          <div class="doc-h">1. 技术领域 <span class="doc-ev">E0063</span></div>
+          <div class="bar" style="width:97%"></div>
+          <div class="bar" style="width:61%"></div>
+        </div>
+        <div class="doc-sec">
+          <div class="doc-h">5. 总体技术构思 <span class="doc-ev">E0073 E0074</span></div>
+          <div class="bar" style="width:99%"></div>
+          <div class="bar" style="width:94%"></div>
+          <div class="bar hl" style="width:88%"></div>
+        </div>
+        <div class="doc-sec">
+          <div class="doc-h">6. 详细技术方案 <span class="doc-ev">E0086 E0136</span></div>
+          <div class="bar" style="width:96%"></div>
+          <div class="bar hl" style="width:99%"></div>
+          <div class="bar" style="width:91%"></div>
+          <div class="bar" style="width:44%"></div>
+        </div>
+        <div class="doc-sec">
+          <div class="doc-h">10. 实验依据 <span class="doc-ev">E0924 E0925</span></div>
+          <div class="bar" style="width:98%"></div>
+          <div class="bar" style="width:86%"></div>
+          <div class="bar" style="width:35%"></div>
+        </div>
+
+        <div class="seal-stamp">待发明人<br>确认</div>
+      </div>
+    </div>
+
+    <div class="gutter">
+      <div class="gutter-h">证据账本 · 1008 条</div>
+      <div class="anno">
+        <div class="anno-h"><span class="anno-code">E0073</span><span class="anno-name">Methodology</span><span class="anno-lv">已映射</span></div>
+        <div class="bar" style="width:94%"></div><div class="bar" style="width:70%"></div>
+      </div>
+      <div class="anno">
+        <div class="anno-h"><span class="anno-code">E0136</span><span class="anno-name">Vector Extraction</span><span class="anno-lv">已映射</span></div>
+        <div class="bar" style="width:89%"></div><div class="bar" style="width:48%"></div>
+      </div>
+      <div class="anno">
+        <div class="anno-h"><span class="anno-code">E0924</span><span class="anno-name">Main Results</span><span class="anno-lv">已映射</span></div>
+        <div class="bar" style="width:82%"></div>
+      </div>
+      <div class="anno warn">
+        <div class="anno-h"><span class="anno-code">EN-03</span><span class="anno-name">层映射与维度对齐</span><span class="anno-lv">待确认</span></div>
+        <div class="bar" style="width:96%"></div><div class="bar" style="width:64%"></div>
+      </div>
+      <div class="anno warn">
+        <div class="anno-h"><span class="anno-code">AI-03</span><span class="anno-name">tokenizer 对齐规则</span><span class="anno-lv">待确认</span></div>
+        <div class="bar" style="width:91%"></div><div class="bar" style="width:55%"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ § 1 核心特点 ══════════════════════ -->
+<section id="features" class="tint">
+  <div class="container">
+    <div class="sec-head">
+      <span class="sec-no">§ 1</span>
+      <h2 class="sec-title">核心特点</h2>
+      <span class="sec-rule"></span>
+      <span class="sec-en">Features</span>
+    </div>
+    <p class="sec-desc">PatentClaw 由两个通过文件契约协作的独立服务组成：<b>PatentGenerator</b> 负责生成，<b>PatentReviewer</b> 负责审校。两者共同保证的是同一件事——交底书里的每一句话都有出处。</p>
+
+    <div class="feat-grid">
+      <div class="feat-card">
+        <span class="feat-no">01</span>
+        <div class="feat-title">证据可追溯</div>
+        <div class="feat-desc">每条技术特征、每个实施例都映射回论文原文片段，找不到依据的内容不会被写进正文。</div>
+      </div>
+      <div class="feat-card">
+        <span class="feat-no">02</span>
+        <div class="feat-title">法定结构一次到位</div>
+        <div class="feat-desc">直接产出符合专利代理惯例的 17 章节技术交底书，而不是照搬论文目录简单改写。</div>
+      </div>
+      <div class="feat-card">
+        <span class="feat-no">03</span>
+        <div class="feat-title">生成与审校双引擎</div>
+        <div class="feat-desc">两个独立服务只通过文件与 HTTP 接口协作；审校侧不盲信生成侧的结论，会重新核查一遍。</div>
+      </div>
+      <div class="feat-card">
+        <span class="feat-no">04</span>
+        <div class="feat-title">版本化固定检查表</div>
+        <div class="feat-desc">30 项检查覆盖 13 个维度，18 项由确定性规则执行、12 项由模型判定。维度与严重程度写死在检查表里，模型不能自行增删。</div>
+      </div>
+      <div class="feat-card">
+        <span class="feat-no">05</span>
+        <div class="feat-title">模型只做逐项判定</div>
+        <div class="feat-desc">语义检查必须恰好返回全部 12 项，缺项、重复或未知 check_id 一律拒绝；模型不输出维度，也不自己定严重程度。</div>
+      </div>
+      <div class="feat-card">
+        <span class="feat-no">06</span>
+        <div class="feat-title">量化评分与分级</div>
+        <div class="feat-desc">只对 fail 与 needs_human_review 的检查项按严重程度扣分，同一检查项即使影响多章也最多扣一次，是否通过由程序判定。</div>
+      </div>
+      <div class="feat-card">
+        <span class="feat-no">07</span>
+        <div class="feat-title">逐项隔离改稿</div>
+        <div class="feat-desc">每个未通过项各起一个 Agent，只能改自己声明的字段、只能提交能唯一定位的局部替换，改完重跑整张检查表，默认最多三轮。</div>
+      </div>
+      <div class="feat-card">
+        <span class="feat-no">08</span>
+        <div class="feat-title">离线可复现</div>
+        <div class="feat-desc">全链路支持离线模式，无需模型密钥即可验证。此时 12 项语义检查标记为 not_assessed，因此离线报告不会声称「整张检查表通过」。</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ § 2 工作原理 ══════════════════════ -->
+<section id="flow">
+  <div class="container">
+    <div class="sec-head">
+      <span class="sec-no">§ 2</span>
+      <h2 class="sec-title">工作原理</h2>
+      <span class="sec-rule"></span>
+      <span class="sec-en">How It Works</span>
+    </div>
+    <p class="sec-desc">从一篇论文到一份可交底的终版文档，全程七步。每一步的真实产出可以在 <a href="example.html" style="color:var(--seal);">§4 运行示例</a> 里逐项对照。</p>
+
+    <div class="flow">
+      <div class="flow-row">
+        <span class="flow-stage">STEP 01</span>
+        <span class="flow-dot-wrap"><span class="flow-dot"></span></span>
+        <div>
+          <div class="flow-h"><span class="flow-cn">提交论文</span></div>
+          <div class="flow-d">上传 LaTeX 论文（.tex 或工程 .zip），也可通过 CLI 直接处理本地文件。</div>
+        </div>
+      </div>
+      <div class="flow-row">
+        <span class="flow-stage">STEP 02</span>
+        <span class="flow-dot-wrap"><span class="flow-dot"></span></span>
+        <div>
+          <div class="flow-h"><span class="flow-cn">解析并建立证据账本</span></div>
+          <div class="flow-d">抽取章节、公式、图表并逐条编号，为后续每一句技术表述提供可核查的出处。</div>
+        </div>
+      </div>
+      <div class="flow-row">
+        <span class="flow-stage">STEP 03</span>
+        <span class="flow-dot-wrap"><span class="flow-dot"></span></span>
+        <div>
+          <div class="flow-h"><span class="flow-cn">自动撰写交底书</span></div>
+          <div class="flow-d">依次完成技术理解、发明点挖掘、方案重构与实施例组织，产出覆盖 17 个法定章节的初稿。</div>
+        </div>
+      </div>
+      <div class="flow-row">
+        <span class="flow-stage">STEP 04</span>
+        <span class="flow-dot-wrap"><span class="flow-dot"></span></span>
+        <div>
+          <div class="flow-h"><span class="flow-cn">按固定检查表初审</span></div>
+          <div class="flow-d">PatentReviewer 对照原文重新核查：18 项确定性规则 + 12 项模型逐项判定，合并为一张 30 项检查表并算出初审分。</div>
+        </div>
+      </div>
+      <div class="flow-row">
+        <span class="flow-stage">STEP 05</span>
+        <span class="flow-dot-wrap"><span class="flow-dot"></span></span>
+        <div>
+          <div class="flow-h"><span class="flow-cn">逐项隔离改稿</span></div>
+          <div class="flow-d">每个未通过的检查项各起一个改稿 Agent，只能改该项声明的字段。缺少原始技术事实时必须返回 blocked 并列出所需材料，不允许编造挂接点、参数或实验数据。</div>
+        </div>
+      </div>
+      <div class="flow-row">
+        <span class="flow-stage">STEP 06</span>
+        <span class="flow-dot-wrap"><span class="flow-dot"></span></span>
+        <div>
+          <div class="flow-h"><span class="flow-cn">复检并循环</span></div>
+          <div class="flow-d">合并局部补丁后重跑整张检查表；仍有问题且本轮产生了安全修改就进入下一轮，默认最多三轮，一轮没有任何修改则提前停止。</div>
+        </div>
+      </div>
+      <div class="flow-row">
+        <span class="flow-stage">STEP 07</span>
+        <span class="flow-dot-wrap"><span class="flow-dot"></span></span>
+        <div>
+          <div class="flow-h"><span class="flow-cn">导出终版</span></div>
+          <div class="flow-d">输出终版技术交底书（DOCX / Markdown / JSON）及初审、终审报告与逐项改稿记录，可直接交给专利代理师。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ § 3 交底书结构 ══════════════════════ -->
+<section id="outline" class="tint">
+  <div class="container">
+    <div class="sec-head">
+      <span class="sec-no">§ 3</span>
+      <h2 class="sec-title">交底书结构</h2>
+      <span class="sec-rule"></span>
+      <span class="sec-en">Output Outline</span>
+    </div>
+    <p class="sec-desc">交底书遵循专利代理认可的法定结构，而非论文的叙事顺序。以下为 DOCX 实际导出的 17 个章节；某一章确实无内容可写时，会显式标注「待补充并由发明人确认」，而不是让模型自由发挥填满。</p>
+
+    <div class="toc">
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">技术领域</span><span class="toc-dots"></span><span class="toc-no">01</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">背景技术</span><span class="toc-dots"></span><span class="toc-no">02</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">现有技术缺陷</span><span class="toc-dots"></span><span class="toc-no">03</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">本发明解决的技术问题</span><span class="toc-dots"></span><span class="toc-no">04</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">总体技术构思</span><span class="toc-dots"></span><span class="toc-no">05</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">详细技术方案</span><span class="toc-dots"></span><span class="toc-no">06</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">关键创新点</span><span class="toc-dots"></span><span class="toc-no">07</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">有益效果</span><span class="toc-dots"></span><span class="toc-no">08</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">具体实施方式</span><span class="toc-dots"></span><span class="toc-no">09</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">实验依据</span><span class="toc-dots"></span><span class="toc-no">10</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">附图说明</span><span class="toc-dots"></span><span class="toc-no">11</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">系统实现</span><span class="toc-dots"></span><span class="toc-no">12</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">数据与接口</span><span class="toc-dots"></span><span class="toc-no">13</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">术语与符号</span><span class="toc-dots"></span><span class="toc-no">14</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">实施边界</span><span class="toc-dots"></span><span class="toc-no">15</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">替代实施方式</span><span class="toc-dots"></span><span class="toc-no">16</span></div></div>
+      <div class="toc-item"><div class="toc-line"><span class="toc-cn">发明人确认事项</span><span class="toc-dots"></span><span class="toc-no">17</span></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ § 4 运行示例 ══════════════════════ -->
+<section id="example">
+  <div class="container">
+    <div class="sec-head">
+      <span class="sec-no">§ 4</span>
+      <h2 class="sec-title">运行示例</h2>
+      <span class="sec-rule"></span>
+      <span class="sec-en">Worked Example</span>
+    </div>
+    <p class="sec-desc">拿一篇 NeurIPS 投稿论文（视觉语言模型推理向量迁移）跑完整条流水线，模型为 <b>gpt-5.5</b>。下面的数字全部来自那次运行的产出文件，<b>包括它没有通过审查这件事</b>。</p>
+
+    <div class="ex-stats">
+      <div class="ex-stat">
+        <div class="ex-stat-v">1008</div>
+        <div class="ex-stat-k">证据条目</div>
+      </div>
+      <div class="ex-stat">
+        <div class="ex-stat-v">17</div>
+        <div class="ex-stat-k">交底书章节</div>
+      </div>
+      <div class="ex-stat">
+        <div class="ex-stat-v">30</div>
+        <div class="ex-stat-k">固定检查项</div>
+      </div>
+      <div class="ex-stat">
+        <div class="ex-stat-v">32<span class="to"> → </span>40</div>
+        <div class="ex-stat-k">初审 → 终审分</div>
+      </div>
+      <div class="ex-stat">
+        <div class="ex-stat-v">10<span class="to"> / </span>10</div>
+        <div class="ex-stat-k">改稿 修改 / 阻塞</div>
+      </div>
+      <div class="ex-stat">
+        <div class="ex-stat-v seal">6</div>
+        <div class="ex-stat-k">仍待人工确认</div>
+      </div>
+    </div>
+
+    <div class="btns" style="justify-content:flex-start;margin-bottom:6px;">
+      <a href="example.html" class="btn btn-primary">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 3h12M2 8h12M2 13h7"/></svg>
+        查看完整运行记录
+      </a>
+    </div>
+
+    <div class="note">
+      <div class="note-h">这个示例想说明什么</div>
+      <p>三轮逐项改稿里有 <b>10 次返回 blocked</b>——不是失败，而是系统拒绝在没有原始依据的情况下动笔，
+        转而写清缺哪些材料交还发明人。终审 40 分、判定未通过，剩下 6 项要的都是论文里没写、只有发明人知道的技术事实。
+        <b>把不知道的事情标出来，而不是编一个让分数变好看的答案</b>，是这套流水线的设计目标。</p>
+      <p>示例页同时记录了一处<b>改稿引入的回归</b>（UE-01 由通过变为待确认）和一个<b>当前检查表发现不了的缺陷</b>（终版导出丢失全部附图），
+        没有隐去。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ § 5 快速开始 ══════════════════════ -->
+<section id="start" class="tint">
+  <div class="container">
+    <div class="sec-head">
+      <span class="sec-no">§ 5</span>
+      <h2 class="sec-title">快速开始</h2>
+      <span class="sec-rule"></span>
+      <span class="sec-en">Quick Start</span>
+    </div>
+    <p class="sec-desc">以下为 Windows PowerShell 环境。模型服务走 OpenAI 兼容接口，可指向内网部署。</p>
+
+    <div class="teaser-cap"><b>PatentGenerator</b></div>
+    <div class="code-wrap">
+      <button class="copy-btn" data-copy="#code-start">COPY</button>
+      <div class="code" id="code-start"><span class="c"># 安装与离线验证</span>
+cd PatentGenerator
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -e <span class="v">".[dev]"</span>
+pytest -q
+
+<span class="c"># 离线跑通全流程（不调用模型 API）</span>
+<span class="k">$env:L2D_OFFLINE_MODE</span>=<span class="v">"true"</span>
+latex2disclosure examples\sample.tex
+
+<span class="c"># 在线模型模式</span>
+<span class="k">$env:L2D_OFFLINE_MODE</span>=<span class="v">"false"</span>
+<span class="k">$env:OPENAI_API_KEY</span>=<span class="v">"你的服务端 Key"</span>
+<span class="k">$env:L2D_MODEL</span>=<span class="v">"gpt-5.4-mini"</span>
+<span class="k">$env:L2D_ENABLE_REVIEW</span>=<span class="v">"false"</span>
+
+<span class="c"># 启动 API 服务</span>
+latex2disclosure-api
+<span class="c"># http://127.0.0.1:8100  ·  文档 /docs</span></div>
+    </div>
+
+    <div class="teaser-cap" style="margin-top:40px;"><b>PatentReviewer</b></div>
+    <div class="code-wrap">
+      <button class="copy-btn" data-copy="#code-reviewer">COPY</button>
+      <div class="code" id="code-reviewer"><span class="c"># 安装（约定装入已有 patentclaw Conda 环境）</span>
+conda activate patentclaw
+cd PatentReviewer
+python -m pip install -e <span class="v">".[dev]"</span>
+pytest -q
+
+<span class="c"># 离线跑一次审查（不调用模型，仅确定性规则）</span>
+patent-reviewer run `
+  --generator-job .\generator-task\artifacts\job.json `
+  --source .\paper.tex `
+  --output .\data
+
+<span class="c"># 在线模式：固定检查表审查 + 逐项隔离改稿</span>
+Copy-Item .env.example .env
+<span class="c"># 编辑 .env：PR_OPENAI_API_KEY / PR_OPENAI_BASE_URL / PR_OPENAI_MODEL</span>
+<span class="c"># 改稿轮数上限，可取 1–10，默认 3</span>
+<span class="k">$env:PR_MAX_REVISION_ROUNDS</span>=<span class="v">"3"</span>
+patent-reviewer run `
+  --generator-job .\generator-task\artifacts\job.json `
+  --source .\paper.tex `
+  --output .\data `
+  --online
+
+<span class="c"># 启动 API 服务（同步阻塞，无 CORS）</span>
+patent-reviewer serve --host 127.0.0.1 --port 8011
+<span class="c"># http://127.0.0.1:8011/health</span></div>
+    </div>
+
+    <div class="note calm">
+      <div class="note-h">说明</div>
+      <p>离线模式无需任何模型密钥即可验证全流程，但输出仅为结构验证级别，<b>不可作为正式专利申请文件</b>。当前仅支持 LaTeX 输入；创造性、新颖性、权利要求范围与侵权分析仍需专利代理师人工完成。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ § 6 引用 ══════════════════════ -->
+<section id="citation">
+  <div class="container">
+    <div class="sec-head">
+      <span class="sec-no">§ 6</span>
+      <h2 class="sec-title">引用</h2>
+      <span class="sec-rule"></span>
+      <span class="sec-en">Citation</span>
+    </div>
+    <p class="sec-desc">如果本工具对您的工作有所帮助，欢迎引用。</p>
+
+    <div class="code-wrap">
+      <button class="copy-btn" data-copy="#bib">COPY</button>
+      <div class="code" id="bib"><span class="k">@software</span>{patentclaw2026,
+  <span class="k">title</span>       = {<span class="v">PatentClaw: Turning Every Paper into a Filable Invention Disclosure</span>},
+  <span class="k">author</span>      = {<span class="v">Liu, Runze and Wu, Junqi and Tang, Kaihua and Yang, Xu and Yang, Ziyue</span>},
+  <span class="k">year</span>        = {<span class="v">2026</span>},
+  <span class="k">url</span>         = {<span class="v">https://github.com/lzlfwow/PatentClaw</span>},
+  <span class="k">institution</span> = {<span class="v">Southeast University</span>}
+}</div>
+    </div>
+
+    <div class="note">
+      <div class="note-h">附注 · Disclaimer</div>
+      <p>本工具输出的是<b>技术交底书</b>，用于向专利代理师交底，不构成权利要求书，也不替代专业的专利检索与法律意见。正式专利使用前必须由发明人确认技术事实，并由专利代理师执行专业检索和法律审阅。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════ FOOTER ══════════════════════ -->
+<footer>
+  <div class="foot-brand">PatentClaw</div>
+  <p>
+    <a href="https://github.com/lzlfwow/PatentClaw" target="_blank" rel="noopener">GitHub</a>
+    &nbsp;·&nbsp; 东南大学 Southeast University &nbsp;·&nbsp; SEU PALM Lab
+  </p>
+  <div class="foot-meta">2026 · PATENTGENERATOR + PATENTREVIEWER v0.1.0</div>
+</footer>
+
+<script>
+  document.querySelectorAll('.copy-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var target = document.querySelector(btn.dataset.copy);
+      if (!target) return;
+      navigator.clipboard.writeText(target.innerText).then(function () {
+        btn.textContent = 'COPIED';
+        setTimeout(function () { btn.textContent = 'COPY'; }, 1500);
+      });
+    });
+  });
+</script>
+
+</body>
+</html>
