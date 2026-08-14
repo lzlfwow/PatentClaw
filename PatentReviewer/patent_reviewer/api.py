@@ -37,5 +37,7 @@ async def create_review(request: ReviewRequest) -> dict:
         "initial_score": job.initial_report.score,
         "final_score": job.final_report.score,
         "passed": job.final_report.passed,
+        "revision_rounds": job.metadata.get("revision_rounds", 0),
+        "unresolved_check_ids": job.metadata.get("unresolved_check_ids", []),
         "artifacts": job.artifacts,
     }

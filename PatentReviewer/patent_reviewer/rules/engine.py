@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 import re
-from collections import Counter
 
+from ..checklist import check_for_rule_code
 from ..evidence import EvidenceIndex
 from ..policies import ReviewPolicy
+from ..reporting import recalculate, rule_checklist
 from ..schemas import (
-    DimensionScore, ReviewFinding, ReviewInput, ReviewReport, Severity, TechnicalDisclosure
+    ReviewFinding, ReviewInput, ReviewReport, Severity, TechnicalDisclosure
 )
-
-
-WEIGHTS = {Severity.critical: 20, Severity.major: 10, Severity.minor: 4, Severity.note: 1}
 
 
 class RuleEngine:
@@ -36,19 +34,12 @@ class RuleEngine:
         findings += self._claim_support(disclosure)
         findings += self._ambiguous_language(disclosure)
 
-        counts = Counter(item.dimension for item in findings)
-        dimensions = []
-        for dimension in self.policy.get("dimensions", sorted(counts)):
-            penalty = sum(WEIGHTS[item.severity] for item in findings if item.dimension == dimension)
-            dimensions.append(DimensionScore(dimension=dimension, score=max(0, 100 - penalty), finding_count=counts[dimension]))
-        score = max(0, 100 - sum(WEIGHTS[item.severity] for item in findings))
-        blocking = any(item.severity in (Severity.critical, Severity.major) for item in findings)
-        return ReviewReport(
+        report = ReviewReport(
             legal_baseline=self.policy.baseline,
-            score=score,
-            passed=score >= int(self.policy.get("pass_score", 75)) and not blocking,
+            score=100,
+            passed=False,
             findings=findings,
-            dimensions=dimensions,
+            checklist=rule_checklist(findings),
             human_review_checklist=[
                 "确认申请主体、发明人及公开时间等程序性信息",
                 "确认拟保护主题及必要技术特征，最终权利要求由专利代理师审核",
@@ -60,12 +51,15 @@ class RuleEngine:
                 "规则检查只能识别可形式化风险；创造性、保护范围和等同侵权判断须人工完成。",
             ],
         )
+        return recalculate(report, int(self.policy.get("pass_score", 75)))
 
     def _finding(self, *, dimension: str, severity: Severity, code: str, section: str, path: str,
                  issue: str, risk: str, suggestion: str, legal: str = "", original: str = "",
                  evidence_ids: list[str] | None = None, auto: bool = False, confirm: bool = False) -> ReviewFinding:
+        check = check_for_rule_code(code)
         return ReviewFinding(
-            finding_id=f"F-{code}", dimension=dimension, severity=severity, code=code,
+            finding_id=f"F-{code}", check_id=check.check_id,
+            dimension=check.dimension, severity=check.severity, code=code,
             legal_basis=[legal] if legal else [], target_section=section, target_path=path,
             original_text=original, issue=issue, risk=risk, evidence_ids=evidence_ids or [],
             suggested_revision=suggestion, auto_fixable=auto, requires_inventor_confirmation=confirm,
@@ -150,12 +144,22 @@ class RuleEngine:
                         suggestion="改为“本发明”“本实施方式”或直接陈述技术事实。", original=term, auto=True))
                     break
             for term in self.policy.get("absolute_terms", []):
-                if term in text:
+                if term in text and not self._qualified_optimization_term(text, term):
                     findings.append(self._finding(dimension="专利文体", severity=Severity.major, code=f"ABSOLUTE_{field.upper()}",
                         section=field, path=field, issue=f"存在缺乏限定的绝对化表述“{term}”", risk="技术效果可能无法由证据支持。",
                         suggestion="改为与实验条件和技术特征相对应的客观效果表述。", original=term, confirm=True))
                     break
         return findings
+
+    @staticmethod
+    def _qualified_optimization_term(text: str, term: str) -> bool:
+        if term not in {"最优", "最佳"}:
+            return False
+        contexts = (
+            rf"(?:开发集|验证集|候选|评价指标|性能|得分|准确率).{{0,24}}{term}",
+            rf"{term}.{{0,24}}(?:层|参数|候选|结果|取值)",
+        )
+        return any(re.search(pattern, text) for pattern in contexts)
 
     def _consistency(self, d: TechnicalDisclosure) -> list[ReviewFinding]:
         findings = []

@@ -23,6 +23,30 @@ class ReviewMode(str, Enum):
     online = "online"
 
 
+class ReviewDimension(str, Enum):
+    evidence_traceability = "证据可追溯性"
+    factual_consistency = "事实一致性"
+    unsupported_expansion = "无依据扩写"
+    completeness_form = "完整性与形式"
+    technical_logic = "技术逻辑闭环"
+    enablement = "充分公开"
+    claim_support = "保护范围支撑"
+    eligible_subject = "可专利客体"
+    unity = "单一性"
+    consistency = "一致性"
+    drawings = "附图一致性"
+    patent_style = "专利文体"
+    ai_algorithm = "AI算法专项"
+
+
+class CheckStatus(str, Enum):
+    passed = "pass"
+    failed = "fail"
+    needs_human_review = "needs_human_review"
+    not_applicable = "not_applicable"
+    not_assessed = "not_assessed"
+
+
 class EvidenceSpan(BaseModel):
     evidence_id: str
     source_file: str
@@ -79,7 +103,8 @@ class ReviewInput(BaseModel):
 
 class ReviewFinding(BaseModel):
     finding_id: str
-    dimension: str
+    check_id: str
+    dimension: ReviewDimension
     severity: Severity
     code: str
     legal_basis: list[str] = Field(default_factory=list)
@@ -98,9 +123,21 @@ class ReviewFinding(BaseModel):
 
 
 class DimensionScore(BaseModel):
-    dimension: str
+    dimension: ReviewDimension
     score: int = Field(ge=0, le=100)
     finding_count: int = 0
+
+
+class ChecklistEvaluation(BaseModel):
+    check_id: str
+    dimension: ReviewDimension
+    title: str
+    severity: Severity
+    status: CheckStatus
+    evaluator: Literal["rule", "llm"]
+    reason: str = ""
+    evidence_ids: list[str] = Field(default_factory=list)
+    resolution: Literal["unchanged", "resolved", "regressed", "new_failure"] | None = None
 
 
 class ReviewReport(BaseModel):
@@ -108,6 +145,7 @@ class ReviewReport(BaseModel):
     score: int = Field(ge=0, le=100)
     passed: bool
     findings: list[ReviewFinding] = Field(default_factory=list)
+    checklist: list[ChecklistEvaluation] = Field(default_factory=list)
     dimensions: list[DimensionScore] = Field(default_factory=list)
     human_review_checklist: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
@@ -138,6 +176,18 @@ class ChangeRecord(BaseModel):
     finding_ids: list[str]
 
 
+class IssueRevisionAttempt(BaseModel):
+    round_number: int = Field(ge=1)
+    check_id: str
+    finding_ids: list[str] = Field(default_factory=list)
+    allowed_target_paths: list[str] = Field(default_factory=list)
+    outcome: Literal["modified", "blocked", "no_change", "rejected"]
+    reason: str = ""
+    requested_materials: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    changes: list[ChangeRecord] = Field(default_factory=list)
+
+
 class ReviewJob(BaseModel):
     job_id: str
     created_at: datetime = Field(default_factory=utc_now)
@@ -149,7 +199,7 @@ class ReviewJob(BaseModel):
     final_disclosure: TechnicalDisclosure | None = None
     final_report: ReviewReport | None = None
     changes: list[ChangeRecord] = Field(default_factory=list)
+    revision_attempts: list[IssueRevisionAttempt] = Field(default_factory=list)
     artifacts: dict[str, str] = Field(default_factory=dict)
     metadata: dict[str, Any] = Field(default_factory=dict)
     error: str | None = None
-

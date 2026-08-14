@@ -13,4 +13,6 @@ def build_client(settings: Settings) -> AsyncOpenAI:
         api_key=settings.openai_api_key,
         base_url=settings.openai_base_url,
         default_headers=headers,
+        timeout=settings.openai_timeout_seconds,
+        max_retries=settings.openai_max_retries,
     )

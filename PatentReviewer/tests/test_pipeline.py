@@ -5,7 +5,19 @@ from pathlib import Path
 
 import pytest
 
+from patent_reviewer.agents.revision_agent import IssueRevisionResult
+from patent_reviewer.config import Settings
 from patent_reviewer.pipeline import run_review
+from patent_reviewer.schemas import (
+    ChangeRecord,
+    ChecklistEvaluation,
+    CheckStatus,
+    IssueRevisionAttempt,
+    ReviewDimension,
+    ReviewFinding,
+    ReviewReport,
+    Severity,
+)
 
 
 def write_fixture(tmp_path: Path) -> tuple[Path, Path]:
@@ -100,3 +112,89 @@ async def test_generator_field_evidence_mapping_avoids_cross_language_false_posi
     codes = {item.code for item in job.initial_report.findings}
     assert "NO_EVIDENCE_OVERALL_SOLUTION" not in codes
     assert "NO_EVIDENCE_BENEFICIAL_EFFECTS" not in codes
+
+
+@pytest.mark.asyncio
+async def test_online_pipeline_revises_same_unresolved_check_in_multiple_rounds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    generator, source = write_fixture(tmp_path)
+    review_calls = 0
+    revision_rounds: list[int] = []
+
+    def report(status: CheckStatus) -> ReviewReport:
+        evaluation = ChecklistEvaluation(
+            check_id="WR-03",
+            dimension=ReviewDimension.patent_style,
+            title="相对与不确定用语边界清楚",
+            severity=Severity.minor,
+            status=status,
+            evaluator="llm",
+            reason="仍需修订" if status == CheckStatus.failed else "已通过",
+        )
+        findings = []
+        if status == CheckStatus.failed:
+            findings.append(ReviewFinding(
+                finding_id="F-WR-03",
+                check_id="WR-03",
+                dimension=ReviewDimension.patent_style,
+                severity=Severity.minor,
+                code="WR-03",
+                target_section="背景技术",
+                target_path="background",
+                issue="存在不确定用语",
+                risk="边界不清",
+            ))
+        return ReviewReport(
+            legal_baseline="test",
+            score=96 if findings else 100,
+            passed=not findings,
+            findings=findings,
+            checklist=[evaluation],
+        )
+
+    async def fake_online_review(*args, **kwargs) -> ReviewReport:
+        nonlocal review_calls
+        review_calls += 1
+        return report(CheckStatus.failed if review_calls < 3 else CheckStatus.passed)
+
+    async def fake_revise(review_input, evaluation, findings, settings, round_number):
+        revision_rounds.append(round_number)
+        before = review_input.disclosure.background[0]
+        after = before + f"（第{round_number}轮修订）"
+        disclosure = review_input.disclosure.model_copy(update={"background": [after]})
+        change = ChangeRecord(
+            action_id=f"R{round_number}-WR-03-001",
+            target_path="background",
+            before=before,
+            after=after,
+            finding_ids=["F-WR-03"],
+        )
+        return IssueRevisionResult(
+            disclosure=disclosure,
+            attempt=IssueRevisionAttempt(
+                round_number=round_number,
+                check_id="WR-03",
+                finding_ids=["F-WR-03"],
+                allowed_target_paths=["background"],
+                outcome="modified",
+                changes=[change],
+            ),
+        )
+
+    monkeypatch.setattr("patent_reviewer.pipeline._online_review", fake_online_review)
+    monkeypatch.setattr("patent_reviewer.pipeline.revise_issue_online", fake_revise)
+    settings = Settings(
+        openai_api_key="test",
+        max_revision_rounds=3,
+        output_root=tmp_path / "out",
+    )
+
+    job = await run_review(generator, source, online=True, settings=settings)
+
+    assert revision_rounds == [1, 2]
+    assert len(job.revision_attempts) == 2
+    assert job.final_report.passed is True
+    assert job.metadata["revision_termination_reason"] == "all_checks_resolved"
+    assert Path(job.artifacts["revision_attempts_json"]).exists()

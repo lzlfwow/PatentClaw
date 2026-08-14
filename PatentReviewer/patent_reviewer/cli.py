@@ -39,6 +39,8 @@ def main() -> None:
         "mode": job.mode.value,
         "initial_score": job.initial_report.score,
         "final_score": job.final_report.score,
+        "revision_rounds": job.metadata.get("revision_rounds", 0),
+        "unresolved_check_ids": job.metadata.get("unresolved_check_ids", []),
         "artifacts": job.artifacts,
     }, ensure_ascii=False, indent=2))
 

@@ -20,15 +20,25 @@ def disclosure_markdown(disclosure: TechnicalDisclosure) -> str:
 
 
 def review_markdown(report: ReviewReport, title: str) -> str:
-    lines = [f"# {title}", "", f"- 总分：{report.score}/100", f"- 结论：{'通过规则基线' if report.passed else '存在待处理问题'}",
-             f"- 法规基线：{report.legal_baseline}", "", "## 审查意见", ""]
+    lines = [f"# {title}", "", f"- 总分：{report.score}/100", f"- 结论：{'通过固定检查表基线' if report.passed else '存在待处理问题'}",
+             f"- 法规基线：{report.legal_baseline}", "", "## 固定检查表", "",
+             "| ID | 维度 | 检查项 | 执行器 | 严重程度 | 状态 | 终审变化 |",
+             "| --- | --- | --- | --- | --- | --- | --- |"]
+    for item in report.checklist:
+        lines.append(
+            f"| `{item.check_id}` | {item.dimension.value} | {item.title} | "
+            f"{item.evaluator} | {item.severity.value} | {item.status.value} | "
+            f"{item.resolution or '-'} |"
+        )
+    lines.extend(["", "## 审查意见", ""])
     if not report.findings:
         lines.append("未发现规则可识别问题。")
     for index, item in enumerate(report.findings, start=1):
         lines.extend([
             f"### {index}. [{item.severity.value}] {item.issue}", "",
             f"- 编码：`{item.code}`",
-            f"- 维度：{item.dimension}",
+            f"- 检查项：`{item.check_id}`",
+            f"- 维度：{item.dimension.value}",
             f"- 位置：`{item.target_path}`",
             f"- 风险：{item.risk}",
             f"- 建议：{item.suggested_revision or '人工核查'}",
