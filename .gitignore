@@ -28,6 +28,9 @@ dist/
 data/
 outputs/
 artifacts/
+# 宣传片工程目录（含 Chrome 配置与 ffmpeg 二进制，约 119MB）。
+# 成片与封面已另存到 web/assets/，只提交那两个文件。
+promo-video/
 uploads/
 logs/
 *.log

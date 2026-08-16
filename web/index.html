@@ -8,6 +8,12 @@
   <meta property="og:title" content="PatentClaw — 论文到专利交底书自动生成与审校">
   <meta property="og:description" content="Turning Every Paper into a Filable Invention Disclosure">
   <meta property="og:type" content="website">
+  <meta property="og:image" content="assets/promo-poster.jpg">
+  <meta property="og:video" content="assets/patentclaw-promo-1080p.mp4">
+  <meta property="og:video:type" content="video/mp4">
+  <meta property="og:video:width" content="1920">
+  <meta property="og:video:height" content="1080">
+  <meta name="twitter:card" content="player">
   <!-- 内联 SVG favicon，无需 assets 文件 -->
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%A6%9E</text></svg>">
   <link rel="stylesheet" href="style.css">
@@ -65,6 +71,24 @@
     .corr-note sup { color: var(--seal); }
 
     .btns { display: flex; gap: 9px; justify-content: center; flex-wrap: wrap; }
+
+    /* ══════════════════════ 演示视频 ══════════════════════ */
+    .demo { max-width: var(--max-wide); margin: 0 auto; padding: 44px 32px 0; }
+    .video-frame {
+      border: 1px solid var(--rule-2); background: var(--ink);
+      box-shadow: 0 1px 0 var(--rule-2), 0 14px 44px rgba(28,26,23,.10);
+      line-height: 0;
+    }
+    .video-frame video {
+      display: block; width: 100%; height: auto; max-height: 78vh;
+      object-fit: contain; background: var(--ink);
+    }
+    .video-meta {
+      margin-top: 10px; font-family: var(--font-mono);
+      font-size: 10.5px; letter-spacing: .04em; color: var(--muted);
+    }
+    .video-meta a { color: var(--seal); text-decoration: none; border-bottom: 1px solid var(--rule-2); }
+    .video-meta a:hover { border-color: var(--seal); }
 
     /* ══════════════════════ TEASER ══════════════════════ */
     .teaser { max-width: var(--max-wide); margin: 0 auto; padding: 46px 32px 0; }
@@ -235,13 +259,14 @@
       <span class="nav-brand-sub">交底书生成</span>
     </a>
     <div class="nav-links">
+      <a href="#demo">演示视频</a>
       <a href="#features"><span class="nav-no">§1</span>特点</a>
       <a href="#flow"><span class="nav-no">§2</span>工作原理</a>
       <a href="#outline"><span class="nav-no">§3</span>交底书结构</a>
       <a href="#example"><span class="nav-no">§4</span>运行示例</a>
       <a href="#start"><span class="nav-no">§5</span>快速开始</a>
       <a href="#citation"><span class="nav-no">§6</span>引用</a>
-      <a href="example.html" class="nav-keep">运行示例</a>
+      <a href="example.html" class="nav-keep">示例页 ↗</a>
       <a href="https://github.com/lzlfwow/PatentClaw" target="_blank" rel="noopener" class="nav-keep">GitHub</a>
     </div>
   </div>
@@ -293,8 +318,32 @@
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 3h12M2 8h12M2 13h7"/></svg>
       看一次真实运行
     </a>
+    <a href="#demo" class="btn">演示视频</a>
     <a href="#start" class="btn">本地运行</a>
   </div>
+</div>
+
+<!-- ══════════════════════ 演示视频 ══════════════════════ -->
+<!-- 成片与封面在 assets/，源工程 promo-video/ 不进仓库（含 Chrome 配置，约 119MB）。
+     不自动播放：视频有音轨，且 8MB 不该在用户没点之前就下载。 -->
+<div class="demo" id="demo">
+  <p class="teaser-cap"><b>演示视频</b>&nbsp;&nbsp;42 秒看完从论文到交底书的全过程</p>
+  <div class="video-frame">
+    <video
+      controls
+      preload="metadata"
+      playsinline
+      poster="assets/promo-poster.jpg"
+      width="1920" height="1080">
+      <source src="assets/patentclaw-promo-1080p.mp4" type="video/mp4">
+      你的浏览器不支持内嵌视频。
+      <a href="assets/patentclaw-promo-1080p.mp4">直接下载 MP4（8.3 MB）</a>
+    </video>
+  </div>
+  <p class="video-meta">
+    1920×1080 · 30 fps · 42 秒 · H.264/AAC · 8.3 MB &nbsp;·&nbsp;
+    <a href="assets/patentclaw-promo-1080p.mp4" download>下载原片</a>
+  </p>
 </div>
 
 <!-- ══════════════════════ TEASER ══════════════════════ -->
