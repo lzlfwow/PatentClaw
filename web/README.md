@@ -6,6 +6,10 @@
 首页内嵌 42 秒演示视频，成片与封面在 `assets/`（源工程 `promo-video/` 约 119MB，不进仓库）。
 部署时 `index.html`、`example.html`、`style.css`、`example-data.js`、`assets/` 要一起放，`tools/` 不用。
 
+线上地址 <https://lzlfwow.github.io/PatentClaw/>，由 `.github/workflows/pages.yml`
+在每次 `web/` 变动时自动发布（Settings → Pages 的 Source 必须是 GitHub Actions，
+选成 Deploy from a branch 会被 Jekyll 抢去服务仓库根目录）。
+
 
 ## 配色
 
