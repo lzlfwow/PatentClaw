@@ -1,6 +1,6 @@
 # PatentClaw v0.1
 
-> 从科研论文生成证据可追溯的中国发明专利技术交底书，并通过固定检查表完成审查与多轮改稿。
+> 基于科研论文稿件直接生成发明专利技术交底书（中国），并通过固定检查表完成审查与多轮改稿。
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
