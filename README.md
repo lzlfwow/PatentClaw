@@ -257,6 +257,17 @@ python -m http.server 8000 --directory web
 
 然后访问 <http://127.0.0.1:8000/>。
 
+## Citation
+```
+@software{patentclaw2026,
+  title       = {PatentClaw: Turning Every Paper into a Filable Invention Disclosure},
+  author      = {Liu, Runze and Wu, Junqi and Tang, Kaihua and Yang, Xu and Yang, Ziyue},
+  year        = {2026},
+  url         = {https://github.com/lzlfwow/PatentClaw},
+  institution = {Southeast University and Tongji University}
+}
+```
+
 ## License
 
 本项目采用 [MIT License](LICENSE)。
