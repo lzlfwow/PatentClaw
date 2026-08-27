@@ -87,10 +87,33 @@ class TechnicalSolution(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list)
 
 
+class PatentFigureNode(BaseModel):
+    node_id: str
+    label: str
+    kind: Literal["start_end", "process", "decision", "data", "component"] = "process"
+
+
+class PatentFigureEdge(BaseModel):
+    source: str
+    target: str
+    label: str = ""
+
+
+class PatentFigure(BaseModel):
+    figure_no: int = Field(ge=1)
+    title: str
+    kind: Literal["flowchart", "system"]
+    nodes: list[PatentFigureNode]
+    edges: list[PatentFigureEdge]
+    image_path: str | None = None
+    mermaid_path: str | None = None
+
+
 class EvidencePackage(BaseModel):
     embodiments: list[str]
     experimental_support: list[str]
     figure_plan: list[str]
+    patent_figures: list[PatentFigure] = Field(default_factory=list)
     evidence_mapping: dict[str, list[str]]
     unsupported_items: list[str] = Field(default_factory=list)
 

@@ -49,6 +49,7 @@ class DisclosurePipeline:
                 "review_model": self.settings.review_model,
                 "enable_review": self.settings.enable_review,
                 "agent_sequence": [agent.name for agent in self.agents],
+                "figure_source_policy": "regenerated_only",
             },
         )
         self.store.save(job)
@@ -88,11 +89,26 @@ class DisclosurePipeline:
                 job.updated_at = datetime.now(timezone.utc)
                 self.store.save(job)
 
-            job.events.append(PipelineEvent(stage="stage7_export", agent="export_tool", status="started", message="导出技术交底书"))
-            job.events.append(PipelineEvent(stage="stage7_export", agent="export_tool", status="completed", message="技术交底书导出完成"))
+            if job.review is not None:
+                job.metadata["review_passed"] = job.review.passed
+                job.metadata["review_score"] = job.review.score
+
+            job.events.append(PipelineEvent(
+                stage="stage7_export",
+                agent="export_tool",
+                status="started",
+                message="重新生成专利附图并导出技术交底书",
+            ))
+            job.artifacts = export_job(job, self.settings.data_dir)
+            job.events.append(PipelineEvent(
+                stage="stage7_export",
+                agent="export_tool",
+                status="completed",
+                message="专利附图重绘与技术交底书导出完成",
+            ))
             job.status = JobStatus.completed
             job.updated_at = datetime.now(timezone.utc)
-            job.artifacts = export_job(job, self.settings.data_dir)
+            Path(job.artifacts["json"]).write_text(job.model_dump_json(indent=2), encoding="utf-8")
         except Exception as exc:
             job.status = JobStatus.failed
             job.error = f"{type(exc).__name__}: {exc}"

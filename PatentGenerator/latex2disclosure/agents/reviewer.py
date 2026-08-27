@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .base import AgentContext, compact_evidence
+from ..math_ooxml import contains_unmarked_math
 from ..schemas import ReviewFinding, ReviewReport
 
 
@@ -25,7 +26,9 @@ class IndependentReviewAgent:
                 output_type=ReviewReport,
                 system_prompt=(
                     "你是独立专利质量审查Agent，不参与初稿撰写。检查标题、章节完整性、术语一致性、技术链条、"
-                    "证据支持、实施充分性和虚构风险。评分应保守，给出可执行整改意见。"
+                    "证据支持、实施充分性和虚构风险。还要检查正文是否以中文为主，背景是否自足，缺陷、技术问题、"
+                    "技术手段与有益效果是否对应，实验是否包含可制表和制图的数据，以及数学表达是否使用$...$包围的"
+                    "规范LaTeX、向量粗体、花体集合、真实上下标和逐项符号定义。评分应保守，给出可执行整改意见。"
                 ),
                 payload={
                     "disclosure": context.job.disclosure.model_dump(mode="json"),
@@ -76,6 +79,31 @@ class IndependentReviewAgent:
                 severity="minor", code="NO_EXPERIMENT", message="未提取到实验依据。", remediation="从论文结果章节补充可复核实验数据。"
             ))
             score -= 6
+        all_text = "\n".join(
+            [
+                disclosure.overall_solution,
+                *disclosure.detailed_steps,
+                *disclosure.embodiments,
+                *disclosure.terminology,
+                *disclosure.data_and_interfaces,
+            ]
+        )
+        if contains_unmarked_math(all_text):
+            findings.append(ReviewFinding(
+                severity="major",
+                code="MATH_NOTATION",
+                message="存在使用普通下划线或尖号书写的数学变量。",
+                remediation="使用$...$ LaTeX标记，并统一向量、集合、上下标和符号定义。",
+            ))
+            score -= 10
+        if context.job.evidence_package and not context.job.evidence_package.patent_figures:
+            findings.append(ReviewFinding(
+                severity="major",
+                code="NO_PATENT_FIGURE",
+                message="未生成可核查的专利附图规格。",
+                remediation="根据技术步骤重绘中文流程图或系统结构图并提供可编辑源文件。",
+            ))
+            score -= 10
         context.job.review = ReviewReport(
             score=max(0, score),
             passed=score >= 80 and not any(item.severity == "critical" for item in findings),

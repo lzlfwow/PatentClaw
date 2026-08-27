@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     openai_timeout_seconds: float = Field(default=180.0, alias="L2D_OPENAI_TIMEOUT_SECONDS")
     model: str = Field(default="gpt-5.4-mini", alias="L2D_MODEL")
     review_model: str = Field(default="gpt-5.4", alias="L2D_REVIEW_MODEL")
-    enable_review: bool = Field(default=False, alias="L2D_ENABLE_REVIEW")
+    enable_review: bool = Field(default=True, alias="L2D_ENABLE_REVIEW")
     data_dir: Path = Field(default=Path("data"), alias="L2D_DATA_DIR")
     max_upload_mb: int = Field(default=50, alias="L2D_MAX_UPLOAD_MB")
     max_expanded_mb: int = Field(default=150, alias="L2D_MAX_EXPANDED_MB")

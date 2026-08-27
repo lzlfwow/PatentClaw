@@ -7,7 +7,17 @@ from ..schemas import InventionDisclosure, TechnicalFeature
 def _patent_title(title: str) -> str:
     cleaned = title.strip().strip(".。")
     if cleaned.startswith("一种"):
-        return cleaned[:25]
+        if len(cleaned) <= 25:
+            return cleaned
+        compact = cleaned.replace("的", "")
+        for redundant in ("提取、迁移与", "提取、迁移和", "提取与迁移及", "提取与迁移"):
+            compact = compact.replace(redundant, "")
+        if len(compact) <= 25:
+            return compact
+        for suffix in ("方法及系统", "方法", "系统"):
+            if compact.endswith(suffix):
+                return compact[: 25 - len(suffix)].rstrip("、与及和") + suffix
+        return compact[:25]
     lowered = cleaned.lower()
     if all(keyword in lowered for keyword in ("representation", "exploration")):
         return "一种基于自适应表征探索的多样化生成方法"
@@ -47,6 +57,7 @@ class InventionMiningAgent:
                     ),
                 },
             )
+            context.job.invention.proposed_title = _patent_title(context.job.invention.proposed_title)
             return
         understanding = context.job.understanding
         steps = understanding.workflow_steps or [understanding.method_summary]

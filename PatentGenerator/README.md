@@ -4,7 +4,7 @@
 
 ## 为什么采用多个Sub-Agent
 
-论文转技术交底书不是一次普通改写。论文强调研究贡献和实验表现，技术交底书要求明确技术问题、必要技术特征、步骤关系、替代方案、实施例和证据支持。因此本项目将正式生成流程拆分给五个专业Sub-Agent，并把文件解析和文档导出保留为确定性工具。独立审查为可选能力，默认关闭，不进入正式交底书正文。
+论文转技术交底书不是一次普通改写。论文强调研究贡献和实验表现，技术交底书要求明确技术问题、必要技术特征、步骤关系、替代方案、实施例和证据支持。因此本项目将正式生成流程拆分给五个专业Sub-Agent，并把文件解析和文档导出保留为确定性工具。独立审查默认启用且不进入正式交底书正文，可通过环境变量显式关闭。
 
 ```text
 LaTeX / ZIP
@@ -28,10 +28,13 @@ LaTeX Parser Tool ── 展开input/include、解析章节/公式/图注、建�
 05 Disclosure Writer Agent ──── 电通类技术交底书完整草案
    │
    ▼
-06 Independent Review Agent ─── 可选：支持性、完整性、一致性和虚构风险审查
+06 Independent Review Agent ─── 支持性、完整性、公式规范、一致性和虚构风险审查
    │
    ▼
-Export Tool ─────────────────── JSON / Markdown / DOCX
+Patent Figure Generator ─────── 黑白专利附图PNG + 可编辑Mermaid源文件
+   │
+   ▼
+Export Tool ─────────────────── JSON / Markdown / DOCX / 附图包
 ```
 
 ### Sub-Agent职责
@@ -44,9 +47,15 @@ Export Tool ─────────────────── JSON / Mar
 
 `EmbodimentEvidenceAgent`将实验、算法、公式和图注组织为实施例、实验依据、附图计划与“技术特征—论文证据”映射，不受支持的内容必须进入待确认清单。
 
-`DisclosureWriterAgent`按照中国电通类技术交底书结构撰写17个章节，覆盖技术领域、背景技术、现有技术缺陷、技术问题、详细方案、创新点、有益效果、实施例、实验依据、附图说明、系统实现、数据与接口、术语、实施边界、替代方案和待确认事项。
+`DisclosureWriterAgent`按照中国电通类技术交底书的五大栏目组织正文，并以分节方式覆盖技术领域、背景技术、现有技术缺陷、技术问题、详细方案、创新点、有益效果、实施例、实验依据、附图说明、系统实现、数据与接口、术语、实施边界、替代方案和待确认事项。公式使用LaTeX标记进入导出器后转换为可编辑的Word原生公式，向量、花体符号以及上下标按数学规范排版。
 
-`IndependentReviewAgent`不参与正文撰写；仅当`L2D_ENABLE_REVIEW=true`时，独立检查章节完整性、术语一致性、证据支持、实施充分性和虚构风险。审查结果保留在任务JSON中，不写入正式DOCX正文。
+`IndependentReviewAgent`不参与正文撰写；默认独立检查标题长度、中文化、章节完整性、缺陷与方案及优点的对应关系、公式记法、实验表图、术语一致性、证据支持、实施充分性和虚构风险。审查结果保留在任务JSON中，不写入正式DOCX正文；设置`L2D_ENABLE_REVIEW=false`可显式关闭。
+
+### 专利附图重绘
+
+系统不会把论文中的PNG、JPG或PDF原图插入技术交底书。论文图注只作为技术证据线索；附图生成器依据结构化技术方案重新组织节点和连线，生成白底黑线、带S101步骤号或模块标号的中文专利附图。
+
+每幅附图同时提供PNG和Mermaid `.mmd` 源文件。Mermaid是开源且便于人工编辑的图形描述格式；生产运行时使用本项目的Pillow确定性渲染器生成PNG，因此不要求额外安装Node.js、Chromium或Graphviz，也不会因外部渲染服务不可用而回退到论文原图。附图包中的`manifest.json`记录每幅图的类型、文件名和来源策略。
 
 ## 输入能力
 
@@ -83,7 +92,7 @@ $env:L2D_OFFLINE_MODE="false"
 $env:OPENAI_API_KEY="你的服务端Key"
 $env:L2D_MODEL="gpt-5.4-mini"
 $env:L2D_REVIEW_MODEL="gpt-5.4"
-$env:L2D_ENABLE_REVIEW="false"
+$env:L2D_ENABLE_REVIEW="true"
 ```
 
 所有Sub-Agent通过`ModelGateway`请求Pydantic结构化输出。模型密钥只存在后端环境变量中，不能由前端上传或保存。
@@ -119,7 +128,7 @@ file=<paper.tex或project.zip>
 GET /api/jobs/{job_id}
 ```
 
-前端可以使用`events`字段展示LaTeX解析、五个正文Sub-Agent和导出工具的实时阶段状态；启用独立审查时会增加一个审查阶段。
+前端可以使用`events`字段展示LaTeX解析、五个正文Sub-Agent、独立审查和导出工具的实时阶段状态；显式关闭独立审查时不产生审查阶段。
 
 下载产物：
 
@@ -127,6 +136,7 @@ GET /api/jobs/{job_id}
 GET /api/jobs/{job_id}/artifacts/json
 GET /api/jobs/{job_id}/artifacts/markdown
 GET /api/jobs/{job_id}/artifacts/docx
+GET /api/jobs/{job_id}/artifacts/figures
 ```
 
 其他接口：
@@ -151,6 +161,7 @@ latex2disclosure/
 ├── latex_parser.py          # LaTeX/ZIP解析和证据账本
 ├── schemas.py               # 全部阶段的数据契约
 ├── pipeline.py              # Pipeline编排、状态和失败处理
+├── patent_figures.py        # 专利附图规格、Mermaid输出和黑白PNG重绘
 ├── exporter.py              # Markdown、JSON、DOCX导出
 ├── storage.py               # 原子化任务状态持久化
 ├── api.py                   # 供前端调用的FastAPI接口
