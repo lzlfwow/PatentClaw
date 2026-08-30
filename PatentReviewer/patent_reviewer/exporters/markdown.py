@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from ..constants import DISCLOSURE_SECTION_LABELS
-from ..schemas import ReviewReport, TechnicalDisclosure
+from ..schemas import PatentFigureAsset, ReviewReport, TechnicalDisclosure
 
 
-def disclosure_markdown(disclosure: TechnicalDisclosure) -> str:
+def disclosure_markdown(
+    disclosure: TechnicalDisclosure,
+    figures: list[PatentFigureAsset] | None = None,
+) -> str:
     lines = [f"# {disclosure.invention_title or '技术交底书'}", ""]
     for field, label in DISCLOSURE_SECTION_LABELS.items():
         if field == "invention_title":
@@ -16,6 +19,16 @@ def disclosure_markdown(disclosure: TechnicalDisclosure) -> str:
         else:
             lines.append(value or "（待补充）")
         lines.append("")
+    if figures:
+        lines.extend(["## 专利附图", ""])
+        for figure in figures:
+            image_name = f"figures/figure-{figure.figure_no}.png"
+            lines.extend([
+                f"![图{figure.figure_no} {figure.title}]({image_name})",
+                f"图{figure.figure_no}　{figure.title}",
+                "",
+            ])
+        lines.append("> 附图继承自前一步生成器的结构化专利附图，并嵌入最终交底书；未复用论文原图。")
     return "\n".join(lines)
 
 

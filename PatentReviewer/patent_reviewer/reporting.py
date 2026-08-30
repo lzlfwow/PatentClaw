@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
+import re
 
 from .checklist import CHECKLIST, CHECKS_BY_ID, SEVERITY_WEIGHTS
 from .schemas import (
@@ -10,10 +11,40 @@ from .schemas import (
     ReviewFinding,
     ReviewReport,
     Severity,
+    TechnicalDisclosure,
 )
 
 
 FAILING_STATUSES = {CheckStatus.failed, CheckStatus.needs_human_review}
+
+
+def expand_occurrence_findings(
+    report: ReviewReport,
+    disclosure: TechnicalDisclosure,
+) -> ReviewReport:
+    """Split multi-occurrence wording findings into exact, independently editable findings."""
+
+    expanded: list[ReviewFinding] = []
+    for finding in report.findings:
+        if finding.check_id not in {"WR-01", "WR-03"} or not finding.original_text:
+            expanded.append(finding)
+            continue
+        value = getattr(disclosure, finding.target_path, None)
+        text = "\n".join(value) if isinstance(value, list) else str(value or "")
+        terms = [term.strip() for term in re.split(r"[、，,；;]", finding.original_text) if term.strip()]
+        occurrences: list[str] = []
+        for term in terms:
+            occurrences.extend([term] * len(re.findall(re.escape(term), text, flags=re.IGNORECASE)))
+        if len(occurrences) <= 1:
+            expanded.append(finding)
+            continue
+        for index, term in enumerate(occurrences, start=1):
+            expanded.append(finding.model_copy(update={
+                "finding_id": f"{finding.finding_id}-O{index:03d}",
+                "original_text": term,
+                "issue": f"{finding.issue}（第{index}处）",
+            }))
+    return report.model_copy(update={"findings": expanded})
 
 
 def rule_checklist(findings: list[ReviewFinding]) -> list[ChecklistEvaluation]:

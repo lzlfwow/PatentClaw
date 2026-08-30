@@ -70,6 +70,18 @@ class SourceDocument(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+class PatentFigureAsset(BaseModel):
+    """A regenerated Generator figure carried through the review pipeline."""
+
+    figure_no: int = Field(ge=1)
+    title: str = ""
+    kind: str = "flowchart"
+    nodes: list[dict[str, Any]] = Field(default_factory=list)
+    edges: list[dict[str, Any]] = Field(default_factory=list)
+    image_path: str | None = None
+    mermaid_path: str | None = None
+
+
 class TechnicalDisclosure(BaseModel):
     invention_title: str = ""
     technical_field: str = ""
@@ -98,6 +110,7 @@ class ReviewInput(BaseModel):
     source: SourceDocument
     evidence: list[EvidenceSpan]
     disclosure: TechnicalDisclosure
+    patent_figures: list[PatentFigureAsset] = Field(default_factory=list)
     generator_metadata: dict[str, Any] = Field(default_factory=dict)
 
 

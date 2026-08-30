@@ -11,8 +11,9 @@ from .exporters import export_job_bundle
 from .ingestion.generator_adapter import load_review_input
 from .ingestion.input_validator import validate_review_input
 from .policies import load_policy
-from .reporting import FAILING_STATUSES, add_resolutions, merge_semantic_results
+from .reporting import FAILING_STATUSES, add_resolutions, expand_occurrence_findings, merge_semantic_results
 from .revision import apply_revision_plan, build_revision_plan
+from .revision.applier import SAFE_REPLACEMENTS, apply_global_wording_replacements
 from .rules import RuleEngine
 from .schemas import (
     IssueRevisionAttempt,
@@ -20,6 +21,7 @@ from .schemas import (
     ReviewJob,
     ReviewMode,
     ReviewReport,
+    RevisionPlan,
     TechnicalDisclosure,
 )
 
@@ -42,6 +44,7 @@ async def run_review(generator_path: str | Path, source_path: str | Path,
         report = await _online_review(review_input, engine, settings, pass_score)
     else:
         report.limitations.append("离线模式未执行大模型语义核查；事实一致性、无依据扩写和复杂单一性须结合在线模式或人工复核。")
+    report = expand_occurrence_findings(report, review_input.disclosure)
     plan = build_revision_plan(report)
 
     revision_attempts: list[IssueRevisionAttempt] = []
@@ -68,6 +71,35 @@ async def run_review(generator_path: str | Path, source_path: str | Path,
                     item for item in current_report.findings
                     if item.check_id == evaluation.check_id
                 ]
+                global_findings = [
+                    item for item in findings
+                    if item.check_id == "WR-01" and item.original_text in SAFE_REPLACEMENTS
+                ]
+                if global_findings:
+                    global_ids = [item.finding_id for item in global_findings]
+                    revised, global_changes = apply_global_wording_replacements(
+                        current_input.disclosure,
+                        allowed_paths=list(TechnicalDisclosure.model_fields),
+                        finding_ids=global_ids,
+                        round_number=round_number,
+                        terms=list(dict.fromkeys(item.original_text for item in global_findings)),
+                    )
+                    if global_changes:
+                        revision_attempts.append(IssueRevisionAttempt(
+                            round_number=round_number,
+                            check_id=evaluation.check_id,
+                            finding_ids=global_ids,
+                            allowed_target_paths=list(TechnicalDisclosure.model_fields),
+                            outcome="modified",
+                            reason="对纯专利文体术语执行跨字段确定性替换。",
+                            changes=global_changes,
+                        ))
+                        current_input = current_input.model_copy(update={"disclosure": revised})
+                        round_change_count += len(global_changes)
+                        changes.extend(global_changes)
+                        findings = [item for item in findings if item.finding_id not in set(global_ids)]
+                        if not findings:
+                            continue
                 try:
                     result = await revise_issue_online(
                         current_input,
@@ -113,7 +145,29 @@ async def run_review(generator_path: str | Path, source_path: str | Path,
         final_disclosure = current_input.disclosure
         final_report = current_report
     else:
-        final_disclosure, changes = apply_revision_plan(review_input.disclosure, plan)
+        global_findings = [
+            item for item in report.findings
+            if item.check_id == "WR-01" and item.original_text in SAFE_REPLACEMENTS
+        ]
+        if global_findings:
+            final_disclosure, changes = apply_global_wording_replacements(
+                review_input.disclosure,
+                allowed_paths=list(TechnicalDisclosure.model_fields),
+                finding_ids=[item.finding_id for item in global_findings],
+                round_number=0,
+                terms=list(dict.fromkeys(item.original_text for item in global_findings)),
+            )
+            remaining_plan = RevisionPlan(actions=[
+                action for action in plan.actions
+                if not (
+                    action.target_path in TechnicalDisclosure.model_fields
+                    and action.before in SAFE_REPLACEMENTS
+                )
+            ], blocked_actions=plan.blocked_actions)
+            revised, safe_changes = apply_revision_plan(final_disclosure, remaining_plan)
+            final_disclosure, changes = revised, [*changes, *safe_changes]
+        else:
+            final_disclosure, changes = apply_revision_plan(review_input.disclosure, plan)
         final_input = review_input.model_copy(update={"disclosure": final_disclosure})
         final_report = engine.review(final_input)
         final_report.limitations.append("离线模式未执行大模型语义终审；当前终审结论仅表示未发现额外的确定性规则问题。")
@@ -156,9 +210,10 @@ async def _online_review(
 ) -> ReviewReport:
     report = engine.review(review_input)
     semantic = await semantic_review_online(review_input, settings)
-    return merge_semantic_results(
+    report = merge_semantic_results(
         report,
         semantic.evaluations,
         semantic.findings,
         pass_score,
     )
+    return expand_occurrence_findings(report, review_input.disclosure)

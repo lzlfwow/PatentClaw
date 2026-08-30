@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from ..schemas import EvidenceSpan, ReviewInput, TechnicalDisclosure
+from ..schemas import EvidenceSpan, PatentFigureAsset, ReviewInput, TechnicalDisclosure
 from .latex_loader import load_latex_source
 
 
@@ -52,9 +52,15 @@ def load_review_input(generator_path: str | Path, source_path: str | Path) -> Re
                 feature_ids.extend(feature.get("evidence_ids", []))
     evidence_mapping = {}
     unsupported_items = []
+    patent_figures: list[PatentFigureAsset] = []
     if isinstance(data.get("evidence_package"), dict):
         evidence_mapping = data["evidence_package"].get("evidence_mapping", {})
         unsupported_items = data["evidence_package"].get("unsupported_items", [])
+        patent_figures = [
+            PatentFigureAsset.model_validate(item)
+            for item in data["evidence_package"].get("patent_figures", [])
+            if isinstance(item, dict)
+        ]
     mapped_ids = list(dict.fromkeys(
         evidence_id for ids in evidence_mapping.values() if isinstance(ids, list) for evidence_id in ids
     ))
@@ -71,6 +77,7 @@ def load_review_input(generator_path: str | Path, source_path: str | Path) -> Re
         source=source,
         evidence=evidence,
         disclosure=TechnicalDisclosure.model_validate(disclosure_data),
+        patent_figures=patent_figures,
         generator_metadata={
             "job_id": data.get("job_id"),
             "status": data.get("status"),

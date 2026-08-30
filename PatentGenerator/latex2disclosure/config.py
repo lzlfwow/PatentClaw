@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     offline_mode: bool = Field(default=True, alias="L2D_OFFLINE_MODE")
     openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
     openai_base_url: str | None = Field(default=None, alias="OPENAI_BASE_URL")
+    openai_user_agent: str | None = Field(default=None, alias="L2D_OPENAI_USER_AGENT")
     openai_max_retries: int = Field(default=6, alias="L2D_OPENAI_MAX_RETRIES")
     openai_timeout_seconds: float = Field(default=180.0, alias="L2D_OPENAI_TIMEOUT_SECONDS")
     model: str = Field(default="gpt-5.4-mini", alias="L2D_MODEL")

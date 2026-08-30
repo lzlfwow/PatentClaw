@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import base64
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -91,6 +93,36 @@ async def test_missing_required_section_is_not_fabricated(tmp_path: Path) -> Non
     assert job.final_disclosure.embodiments == []
     assert any(item.code == "NO_EMBODIMENT" for item in job.initial_report.findings)
     assert any(action.target_path == "embodiments" for action in job.revision_plan.blocked_actions)
+
+
+@pytest.mark.asyncio
+async def test_generator_figures_are_carried_into_final_bundle(tmp_path: Path) -> None:
+    generator, source = write_fixture(tmp_path)
+    image = tmp_path / "figure-1.png"
+    image.write_bytes(base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+    ))
+    job_path = generator / "job.json"
+    data = json.loads(job_path.read_text(encoding="utf-8"))
+    data["evidence_package"] = {"patent_figures": [{
+        "figure_no": 1,
+        "title": "本发明方法流程图",
+        "kind": "flowchart",
+        "nodes": [{"node_id": "a", "label": "开始"}, {"node_id": "b", "label": "结束"}],
+        "edges": [{"source": "a", "target": "b"}],
+        "image_path": str(image),
+    }]}
+    job_path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    job = await run_review(generator, source, output_root=tmp_path / "out")
+
+    assert len(job.input.patent_figures) == 1
+    assert "figures/figure-1.png" in Path(job.artifacts["final_disclosure_markdown"]).read_text(encoding="utf-8")
+    assert Path(job.artifacts["final_figures_dir"]).joinpath("figure-1.png").is_file()
+    with zipfile.ZipFile(job.artifacts["final_figures_zip"]) as archive:
+        assert "figure-1.png" in archive.namelist()
+    with zipfile.ZipFile(job.artifacts["final_disclosure_docx"]) as archive:
+        assert any(name.startswith("word/media/") for name in archive.namelist())
 
 
 @pytest.mark.asyncio

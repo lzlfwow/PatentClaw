@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass
 from typing import Protocol, TypeVar
 
+import httpx
 from openai import AsyncOpenAI
 from pydantic import BaseModel
 
@@ -13,6 +14,28 @@ from ..schemas import EvidenceSpan, PipelineJob
 
 
 T = TypeVar("T", bound=BaseModel)
+
+
+def _strict_json_schema(model: type[BaseModel]) -> dict[str, object]:
+    """Make Pydantic's schema acceptable to strict compatible gateways."""
+
+    schema = model.model_json_schema()
+
+    def visit(value: object) -> None:
+        if isinstance(value, dict):
+            if value.get("type") == "object":
+                value.setdefault("additionalProperties", False)
+                properties = value.get("properties")
+                if isinstance(properties, dict):
+                    value["required"] = list(properties)
+            for child in value.values():
+                visit(child)
+        elif isinstance(value, list):
+            for child in value:
+                visit(child)
+
+    visit(schema)
+    return schema
 
 
 @dataclass
@@ -41,6 +64,11 @@ class ModelGateway:
             else AsyncOpenAI(
                 api_key=settings.openai_api_key,
                 base_url=settings.openai_base_url,
+                default_headers=(
+                    {"User-Agent": settings.openai_user_agent}
+                    if settings.openai_user_agent
+                    else None
+                ),
                 max_retries=settings.openai_max_retries,
                 timeout=settings.openai_timeout_seconds,
             )
@@ -57,17 +85,56 @@ class ModelGateway:
         if self.client is None:
             raise RuntimeError("离线模式不能调用模型网关")
         data = payload.model_dump(mode="json") if isinstance(payload, BaseModel) else payload
-        response = await self.client.responses.parse(
-            model=model,
-            input=[
+        try:
+            response = await self.client.responses.parse(
+                model=model,
+                store=False,
+                input=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": json.dumps(data, ensure_ascii=False)},
+                ],
+                text_format=output_type,
+            )
+            if response.output_parsed is not None:
+                return response.output_parsed
+        except Exception:
+            # Some OpenAI-compatible gateways expose only Chat Completions or
+            # reject the SDK's default headers. Retry with a minimal direct
+            # JSON-Schema request and validate the result locally.
+            pass
+
+        base_url = str(self.settings.openai_base_url or "").rstrip("/")
+        if not base_url:
+            raise RuntimeError("模型未返回可解析的结构化结果")
+        headers = {
+            "Authorization": f"Bearer {self.settings.openai_api_key}",
+            "Content-Type": "application/json",
+            "User-Agent": self.settings.openai_user_agent or "PatentClaw/0.1",
+        }
+        request = {
+            "model": model,
+            "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": json.dumps(data, ensure_ascii=False)},
             ],
-            text_format=output_type,
-        )
-        if response.output_parsed is None:
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": output_type.__name__,
+                    "strict": True,
+                    "schema": _strict_json_schema(output_type),
+                },
+            },
+        }
+        timeout = httpx.Timeout(self.settings.openai_timeout_seconds)
+        async with httpx.AsyncClient(timeout=timeout, headers=headers) as client:
+            result = await client.post(f"{base_url}/chat/completions", json=request)
+            result.raise_for_status()
+        body = result.json()
+        content = body.get("choices", [{}])[0].get("message", {}).get("content")
+        if not content:
             raise RuntimeError("模型未返回可解析的结构化结果")
-        return response.output_parsed
+        return output_type.model_validate(json.loads(content))
 
 
 def sentences(text: str, minimum: int = 16) -> list[str]:

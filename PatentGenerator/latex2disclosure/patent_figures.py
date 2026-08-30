@@ -178,6 +178,8 @@ def _font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
         Path("C:/Windows/Fonts/simhei.ttf"),
         Path("C:/Windows/Fonts/simsun.ttc"),
         Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+        Path("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"),
+        Path("/usr/share/fonts/truetype/wqy/wqy-microhei.ttc"),
         Path("/System/Library/Fonts/PingFang.ttc"),
     )
     for path in candidates:
